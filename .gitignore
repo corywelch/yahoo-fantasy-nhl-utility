@@ -179,3 +179,44 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+#IDE / VSCode
+*.code-workspace
+.vscode/
+.history/
+.cursor/
+.idea/
+
+#Environment / virtualenv
+.venv/
+venv/
+env/
+
+
+# OS Junk
+.DS_Store
+Desktop.ini
+Thumbs.db
+ehthumbs.db
+.Spotlight-V100
+.Trashes
+
+# Https Certs
+/certs/
+
+# Yahoo Fantasy NHL Utility Specific
+*.env
+*.env.*
+*.log
+*.sqlite
+/data/
+/notebooks/
+/exports/
+/output/
+
+.pyright/
+.nox/
+.benchmarks/
+.cache/
+.direnv/
+.envrc
