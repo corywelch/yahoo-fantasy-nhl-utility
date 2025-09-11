@@ -1,4 +1,3 @@
-# src/fantasy.py
 #!/usr/bin/env python3
 """Simple Yahoo Fantasy Sports API client.
 
@@ -17,7 +16,6 @@ from typing import Dict, Optional
 
 import requests
 
-# Reuse helpers from oauth.py
 from .oauth import load_config, read_token, token_is_valid, refresh_token, write_token
 
 API_BASE = "https://fantasysports.yahooapis.com/fantasy/v2"
@@ -33,55 +31,39 @@ def _ensure_access_token() -> Dict:
         write_token(tok_path, tok)
     return {"cfg": cfg, "tok": tok}
 
-def _get(url_path: str, params: Optional[Dict[str, str]] = None) -> Dict:
+def _get(url_path: str, params: Optional[Dict[str,str]] = None) -> Dict:
     """Make an authenticated GET and return JSON."""
     ctx = _ensure_access_token()
     cfg, tok = ctx["cfg"], ctx["tok"]
     params = params or {}
     params.setdefault("format", "json")
     url = f"{API_BASE}{url_path}"
-    resp = requests.get(
-        url,
-        headers={"Authorization": f"Bearer {tok['access_token']}"},
-        params=params,
-        timeout=cfg["http_timeout"],
-    )
+    resp = requests.get(url, headers={"Authorization": f"Bearer {tok['access_token']}"}, params=params, timeout=cfg["http_timeout"])
     if resp.status_code != 200:
         raise SystemExit(f"GET {url} failed: {resp.status_code} {resp.text[:300]}")
     return resp.json()
 
 def whoami() -> Dict:
-    """Fetch OpenID UserInfo (useful sanity check)."""
-    ctx = _ensure_access_token()
-    cfg, tok = ctx["cfg"], ctx["tok"]
-    r = requests.get(
-        "https://api.login.yahoo.com/openid/v1/userinfo",
-        headers={"Authorization": f"Bearer {tok['access_token']}"},
-        timeout=cfg["http_timeout"],
-    )
-    if r.status_code != 200:
-        raise SystemExit(f"userinfo failed: {r.status_code} {r.text[:200]}")
-    return r.json()
+    """Identify the logged-in user via Fantasy API (no OpenID scopes required)."""
+    return _get("/users;use_login=1")
 
 def list_games_for_logged_in_user() -> Dict:
-    """GET /users;use_login=1/games"""
     return _get("/users;use_login=1/games")
 
 def list_leagues_for_game(game_key: str) -> Dict:
-    """GET /users;use_login=1/games;game_keys={game_key}/leagues"""
-    return _get(f"/users;use_login=1/games;game_keys={game_key}/leagues")
+    path = f"/users;use_login=1/games;game_keys={game_key}/leagues"
+    return _get(path)
 
 def league_metadata(league_key: str) -> Dict:
-    """GET /league/{league_key}  (league_key: <game_id>.l.<league_id>)"""
     return _get(f"/league/{league_key}")
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Yahoo Fantasy API client")
-    ap.add_argument("--whoami", action="store_true", help="Fetch OpenID user info")
+    ap.add_argument("--whoami", action="store_true", help="Identify user via Fantasy API (/users;use_login=1)")
     ap.add_argument("--games", action="store_true", help="List games for the logged-in user")
     ap.add_argument("--leagues", action="store_true", help="List leagues for a given game_key")
     ap.add_argument("--league-meta", action="store_true", help="Fetch league metadata for a given league_key")
-    ap.add_argument("--game-key", type=str, help="Game key (e.g., nhl or a numeric like 458)")
+    ap.add_argument("--game-key", type=str, help="Game key (e.g., nhl or numeric like 458)")
     ap.add_argument("--league-key", type=str, help="League key (e.g., 458.l.12345)")
     args = ap.parse_args()
 
