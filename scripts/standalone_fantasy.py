@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Simple Yahoo Fantasy Sports API client.
+"""
+DEPRECATION NOTICE:
+Please migrate imports to modules in src/, using get_session() from
+src.auth.oauth. This script remains as a compatibility shim.
+
+from src.auth.oauth import get_session
+# minimal no-op to demonstrate import
+if __name__ == "__main__":
+    s = get_session()
+    print("Session OK (legacy shim).")
+"""
+"""
+Simple Yahoo Fantasy Sports API client.
 
 Usage examples:
   python -m src.fantasy --whoami
@@ -7,6 +19,7 @@ Usage examples:
   python -m src.fantasy --leagues --game-key nhl        # or numeric game key like 458
   python -m src.fantasy --league-meta --league-key 458.l.12345
 """
+
 from __future__ import annotations
 
 import argparse

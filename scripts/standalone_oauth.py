@@ -1,5 +1,15 @@
-
 #!/usr/bin/env python3
+"""
+DEPRECATION NOTICE:
+This script is retained as a backup. Normal usage should rely on
+src.auth.oauth.get_session(), which handles refresh automatically.
+
+from src.auth.oauth import main as oauth_main
+
+if __name__ == "__main__":
+    raise SystemExit(oauth_main())
+"""
+
 from __future__ import annotations
 
 import argparse, base64, http.server, json, logging, os, random, ssl, string, threading, time, urllib.parse, webbrowser
