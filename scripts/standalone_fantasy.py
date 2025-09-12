@@ -16,7 +16,7 @@ from typing import Dict, Optional
 
 import requests
 
-from .oauth import load_config, read_token, token_is_valid, refresh_token, write_token
+from .standalone_oauth import load_config, read_token, token_is_valid, refresh_token, write_token
 
 API_BASE = "https://fantasysports.yahooapis.com/fantasy/v2"
 
