@@ -116,10 +116,11 @@ Produces a league-scoped export tree under exports/<league_key>/, for example:
 
 <ISO> is a UTC timestamp like 20250912T143012Z; all files from a single run share the same <ISO> suffix.
 
-### Standings Dump (planned)
+### Standings Dump
 ```bash
 python -m scripts.standings_dump --league-key 453.l.33099 --to-excel
 ```
+Produces a league-scoped export tree under exports/<league_key>/
 
 ### Token Refresh
 - Automatic via `get_session()` in `src/auth/oauth.py`
