@@ -94,15 +94,27 @@ python -m src.auth.oauth
 
 ## 🚀 Usage
 
+### Raw Fetch
+Used for executing code and lookup queries directly on the API. Files save to exports/_debug
+```bash
+python -m scripts.raw_fetch --league-key 453.l.33099 --path settings
+python -m scripts.raw_fetch --league-key 453.l.33099 --path "scoreboard;week=8"
+```
+
 ### League Dump
 ```bash
 python -m scripts.league_dump --league-key 453.l.33099 --pretty --to-excel
 ```
-Produces:
-- `exports/league_info.json`
-- `exports/league_teams.json`
-- `exports/league_scoring.json`
-- `exports/league_info.xlsx`
+Produces a league-scoped export tree under exports/<league_key>/, for example:
+
+- `exports/nhl.453.l.33099/_meta/league_profile.json` – canonical team directory (team_key → {name, logo_url, team_url}).
+- `exports/nhl.453.l.33099/_meta/latest.json` – pointers to the latest league_dump artifacts.
+- `exports/nhl.453.l.33099/league_dump/raw/settings.<ISO>.json` – raw Yahoo API responses (metadata, teams, settings).
+- `exports/nhl.453.l.33099/league_dump/processed/league.<ISO>.json` – normalized league snapshot with _generated_* timestamps.
+- `exports/nhl.453.l.33099/league_dump/excel/league.<ISO>.xlsx` – polished workbook (League, Teams, Scoring, Run Info).
+- `exports/nhl.453.l.33099/league_dump/manifest/manifest.<ISO>.json` – manifest listing all files, sizes, hashes, and CLI args.
+
+<ISO> is a UTC timestamp like 20250912T143012Z; all files from a single run share the same <ISO> suffix.
 
 ### Standings Dump (planned)
 ```bash

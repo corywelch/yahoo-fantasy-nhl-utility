@@ -3,24 +3,45 @@ from __future__ import annotations
 """
 League dump: metadata + teams + scoring settings (no standings/transactions).
 
-Outputs:
-  - league_info.json
-  - league_teams.json
-  - league_scoring.json
-  - (optional) league_info.xlsx (polished formatting + team logos)
+New export layout (v2):
+
+  exports/<league_key>/
+    _meta/
+      league_profile.json
+      latest.json
+    league_dump/
+      raw/
+        settings.<ISO>.json
+      processed/
+        league.<ISO>.json
+      excel/
+        league.<ISO>.xlsx
+      manifest/
+        manifest.<ISO>.json
+
+Where <ISO> is like 20250912T143012Z (UTC).
+
+Backwards compatibility:
+  - Old flat exports/*.json / exports/*.xlsx are no longer written,
+    but existing files are left untouched on disk.
 
 Depends on:
-  - src/auth/oauth.get_session()
-  - src/config/env.get_export_dir()
+  - src/auth.oauth.get_session()
+  - src.config.env.get_export_dir()
+  - src.util_time.make_run_timestamps()
 """
 
-import argparse, io, json
+import argparse
+import io
+import json
+import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import requests
 
 from src.auth.oauth import get_session
 from src.config.env import get_export_dir
+from src.util_time import make_run_timestamps, RunTimestamps
 
 BASE_URL = "https://fantasysports.yahooapis.com/fantasy/v2"
 
@@ -43,6 +64,7 @@ _META_KEYS = {
     "current_week","start_week","start_date","end_week","end_date","is_finished","current_date",
     "game_code","season"
 }
+
 
 def _extract_league_info(payload: dict) -> dict:
     fc = payload.get("fantasy_content", {})
@@ -251,8 +273,171 @@ def _extract_settings(payload: dict) -> dict:
     }
 
 
-# ---------------- IO ----------------
+# ---------------- League-scoped paths + meta + manifest ----------------
+@dataclass
+class LeaguePaths:
+    league_key: str
+    root: Path
+    meta_dir: Path
+    raw_dir: Path
+    processed_dir: Path
+    excel_dir: Path
+    manifest_dir: Path
+
+
+def _prepare_league_dirs(league_key: str) -> LeaguePaths:
+    """
+    Prepare league-scoped export directories under exports/<league_key>/...
+    """
+    base = get_export_dir()
+    league_root = base / league_key
+    meta_dir = league_root / "_meta"
+    raw_dir = league_root / "league_dump" / "raw"
+    processed_dir = league_root / "league_dump" / "processed"
+    excel_dir = league_root / "league_dump" / "excel"
+    manifest_dir = league_root / "league_dump" / "manifest"
+
+    for d in (meta_dir, raw_dir, processed_dir, excel_dir, manifest_dir):
+        d.mkdir(parents=True, exist_ok=True)
+
+    return LeaguePaths(
+        league_key=league_key,
+        root=league_root,
+        meta_dir=meta_dir,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+        excel_dir=excel_dir,
+        manifest_dir=manifest_dir,
+    )
+
+
+def _update_league_profile(
+    paths: LeaguePaths,
+    run_ts: RunTimestamps,
+    league_name: str,
+    teams: List[Dict[str, Any]],
+) -> Path:
+    """
+    Update _meta/league_profile.json with canonical team mapping.
+    """
+    profile_path = paths.meta_dir / "league_profile.json"
+
+    if profile_path.exists():
+        with profile_path.open("r", encoding="utf-8") as f:
+            profile = json.load(f)
+    else:
+        profile = {
+            "league_key": paths.league_key,
+            "league_name": league_name,
+            "teams": {},
+        }
+
+    teams_map = profile.setdefault("teams", {})
+
+    for team in teams:
+        team_key = team.get("team_key")
+        if not team_key:
+            continue
+        teams_map[team_key] = {
+            "name": team.get("name"),
+            "abbrev": None,  # not available from current extractor
+            "logo_url": team.get("logo"),
+            "team_url": team.get("url"),
+        }
+
+    profile["league_key"] = paths.league_key
+    profile["league_name"] = league_name
+    profile["_last_updated_unix"] = run_ts.unix
+    profile["_last_updated_iso_utc"] = run_ts.iso_utc
+
+    with profile_path.open("w", encoding="utf-8") as f:
+        json.dump(profile, f, indent=2, sort_keys=True)
+
+    return profile_path
+
+
+def _update_latest(
+    paths: LeaguePaths,
+    run_ts: RunTimestamps,
+    processed_rel: str,
+    excel_rel: Optional[str],
+) -> Path:
+    """
+    Update _meta/latest.json, preserving other modules' keys.
+    """
+    latest_path = paths.meta_dir / "latest.json"
+
+    if latest_path.exists():
+        with latest_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        data = {"league_key": paths.league_key}
+
+    league_dump = data.get("league_dump", {})
+    league_dump["processed"] = processed_rel
+    if excel_rel is not None:
+        league_dump["excel"] = excel_rel
+
+    data["league_dump"] = league_dump
+    data["_updated_unix"] = run_ts.unix
+    data["_updated_iso_utc"] = run_ts.iso_utc
+
+    with latest_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+
+    return latest_path
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _build_manifest_dict(
+    module_name: str,
+    league_key: str,
+    paths: LeaguePaths,
+    run_ts: RunTimestamps,
+    cli_args: Dict[str, Any],
+    produced_paths: List[Path],
+) -> Dict[str, Any]:
+    files: Dict[str, Dict[str, Any]] = {}
+
+    for abs_path in produced_paths:
+        rel = abs_path.relative_to(paths.root).as_posix()
+        stat = abs_path.stat()
+        files[rel] = {
+            "size_bytes": stat.st_size,
+            "sha256": _sha256_file(abs_path),
+        }
+
+    return {
+        "module": module_name,
+        "league_key": league_key,
+        "_generated_unix": run_ts.unix,
+        "_generated_iso_utc": run_ts.iso_utc,
+        "_generated_iso_local": run_ts.iso_local,
+        "files": files,
+        "cli_args": cli_args,
+    }
+
+
+def _write_manifest(paths: LeaguePaths, run_ts: RunTimestamps, manifest_data: Dict[str, Any]) -> Path:
+    out_path = paths.manifest_dir / f"manifest.{run_ts.iso_stamp}.json"
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(manifest_data, f, indent=2, sort_keys=True)
+    return out_path
+
+
+# ---------------- Legacy flat JSON helper (no longer used) ----------------
 def _dump_json(obj, filename: str, pretty: bool) -> Path:
+    """
+    Legacy helper for flat exports/*.json.
+    Kept for now but unused; new exports are league-scoped.
+    """
     outdir = get_export_dir()
     outdir.mkdir(parents=True, exist_ok=True)
     path = outdir / filename
@@ -263,7 +448,16 @@ def _dump_json(obj, filename: str, pretty: bool) -> Path:
 
 
 # ---------------- Excel ----------------
-def _to_excel(league_info: dict, teams: List[dict], scoring: dict, xlsx_path: Path) -> None:
+def _to_excel(
+    league_info: dict,
+    teams: List[dict],
+    scoring: dict,
+    xlsx_path: Path,
+    run_ts: Optional[RunTimestamps] = None,
+) -> None:
+    """
+    Write polished Excel workbook, including a 'Run Info' sheet when run_ts is provided.
+    """
     from openpyxl import Workbook
     from openpyxl.utils import get_column_letter
     from openpyxl.styles import Font
@@ -376,6 +570,19 @@ def _to_excel(league_info: dict, teams: List[dict], scoring: dict, xlsx_path: Pa
             gm_rows.append({"key": f"week_{wk}", "value": ok})
     write_table("GoalieMinimums", gm_rows, headers_hint=["key","value"])
 
+    # Run Info sheet with timestamps
+    if run_ts is not None:
+        run_ws = wb.create_sheet("Run Info")
+        run_ws["A1"] = "Field"
+        run_ws["B1"] = "Value"
+        rows = [
+            ("_generated_local", run_ts.iso_local),
+            ("_generated_excel", run_ts.excel_serial),
+        ]
+        for idx, (field, value) in enumerate(rows, start=2):
+            run_ws[f"A{idx}"] = field
+            run_ws[f"B{idx}"] = value
+
     xlsx_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(xlsx_path)
 
@@ -402,26 +609,100 @@ def main() -> None:
     args = _parse_args()
     league_key = _resolve_league_key(args)
 
-    # Fetch raw
+    # Fetch raw from Yahoo
     meta_raw = _fetch(f"league/{league_key}/metadata")
     teams_raw = _fetch(f"league/{league_key}/teams")
     settings_raw = _fetch(f"league/{league_key}/settings")
 
-    # Extract
+    # Extract normalized views
     league_info = _extract_league_info(meta_raw)
     teams = _extract_teams(teams_raw)
     scoring = _extract_settings(settings_raw)
 
-    # Write JSON
-    _dump_json(league_info, "league_info.json", args.pretty)
-    _dump_json(teams, "league_teams.json", args.pretty)
-    _dump_json(scoring, "league_scoring.json", args.pretty)
+    # Prepare league-scoped paths + run timestamps
+    run_ts = make_run_timestamps()
+    paths = _prepare_league_dirs(league_key)
+    iso_stamp = run_ts.iso_stamp
+
+    raw_path = paths.raw_dir / f"settings.{iso_stamp}.json"
+    processed_path = paths.processed_dir / f"league.{iso_stamp}.json"
+    excel_path = paths.excel_dir / f"league.{iso_stamp}.xlsx"
+
+    produced_paths: List[Path] = []
+
+    # One-time info when switching to league-scoped layout
+    latest_json_path = paths.meta_dir / "latest.json"
+    first_time_for_league = not latest_json_path.exists()
+    if first_time_for_league:
+        print(f"Using league-scoped export layout under {paths.root}")
+
+    # Raw snapshot (API responses)
+    raw_snapshot = {
+        "league_metadata": meta_raw,
+        "league_teams": teams_raw,
+        "league_settings": settings_raw,
+    }
+    with raw_path.open("w", encoding="utf-8") as f:
+        json.dump(raw_snapshot, f, ensure_ascii=False, indent=2 if args.pretty else None)
+    print(f"Wrote raw snapshot: {raw_path}")
+    produced_paths.append(raw_path)
+
+    # Processed, normalized league dump with run timestamps
+    processed_payload = {
+        "_generated_unix": run_ts.unix,
+        "_generated_iso_utc": run_ts.iso_utc,
+        "_generated_iso_local": run_ts.iso_local,
+        "league_info": league_info,
+        "teams": teams,
+        "scoring": scoring,
+    }
+    with processed_path.open("w", encoding="utf-8") as f:
+        json.dump(processed_payload, f, ensure_ascii=False, indent=2 if args.pretty else None)
+    print(f"Wrote processed league dump: {processed_path}")
+    produced_paths.append(processed_path)
 
     # Optional Excel
     if args.to_excel:
-        xlsx_path = get_export_dir() / "league_info.xlsx"
-        _to_excel(league_info, teams, scoring, xlsx_path)
-        print(f"Wrote Excel: {xlsx_path}")
+        _to_excel(league_info, teams, scoring, excel_path, run_ts=run_ts)
+        print(f"Wrote Excel: {excel_path}")
+        produced_paths.append(excel_path)
+        excel_rel: Optional[str] = excel_path.relative_to(paths.root).as_posix()
+    else:
+        excel_rel = None
+
+    # Meta files at league root
+    league_name = league_info.get("name") or league_key
+    profile_path = _update_league_profile(paths, run_ts, league_name, teams)
+    print(f"Updated league profile: {profile_path}")
+    produced_paths.append(profile_path)
+
+    processed_rel = processed_path.relative_to(paths.root).as_posix()
+    latest_path = _update_latest(paths, run_ts, processed_rel, excel_rel)
+    if first_time_for_league:
+        print(f"Created latest.json: {latest_path}")
+    else:
+        print(f"Updated latest.json: {latest_path}")
+    produced_paths.append(latest_path)
+
+    # Manifest for this run
+    cli_args: Dict[str, Any] = {
+        "league_key": league_key,
+        "league_id": args.league_id,
+        "game": args.game,
+        "pretty": args.pretty,
+        "to_excel": args.to_excel,
+    }
+    manifest_dict = _build_manifest_dict(
+        module_name="league_dump",
+        league_key=league_key,
+        paths=paths,
+        run_ts=run_ts,
+        cli_args=cli_args,
+        produced_paths=produced_paths,
+    )
+    manifest_path = _write_manifest(paths, run_ts, manifest_dict)
+    print(f"Wrote manifest: {manifest_path}")
+    produced_paths.append(manifest_path)
 
 
 if __name__ == "__main__":
