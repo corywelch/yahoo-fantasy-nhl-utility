@@ -150,6 +150,23 @@ Produces league-scoped outputs under exports/<league_key>/transactions_dump/ inc
 - `excel/transactions.<ISO>.xlsx` – AllMoves, Adds, Drops, Trades sheets with team + player context.
 - `manifest/manifest.<ISO>.json` – file list, sizes, hashes, and CLI arguments for this run.
 
+### Draft Dump
+```bash
+python -m scripts.transactions_dump --league-key 453.l.33099 --pretty --to-excel
+```
+Also requires a prior league_dump run (uses _meta/latest.json + latest processed league JSON).
+Fetches the draft results for the specified league under exports/<league_key>/draft_dump/ including:
+
+- `raw/draftresults.<ISO>.json`
+- `processed/draft.<ISO>.json`
+- `excel/draft.<ISO>.xlsx`
+- `manifest/manifest.<ISO>.json`
+
+### Rostered Players List Script
+```bash
+python -m scripts.rostered_players_list --league-key 453.l.33099 --pretty --to-excel
+```
+
 ### Token Refresh
 - Automatic via `get_session()` in `src/auth/oauth.py`
 - Manual repair:
