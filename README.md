@@ -95,11 +95,20 @@ python -m src.auth.oauth
 ## 🚀 Usage
 
 ### Raw Fetch
-Used for executing code and lookup queries directly on the API. Files save to exports/_debug
 ```bash
-python -m scripts.raw_fetch --league-key 453.l.33099 --path settings
-python -m scripts.raw_fetch --league-key 453.l.33099 --path "scoreboard;week=8"
+python -m scripts.raw_fetch --league-key 453.l.33099 --path standings
+python -m scripts.raw_fetch --league-key 453.l.33099 --path "scoreboard;week=5"
+python -m scripts.raw_fetch --league-key 453.l.33099 --path "transactions;type=trade"
 ```
+Low-level helper for grabbing unparsed Yahoo Fantasy API JSON for a given league + endpoint.
+Outputs are written to exports/_debug/ as one file per call, e.g.:
+
+- `exports/_debug/standings.json`
+- `exports/_debug/scoreboard;week=5.json`
+- `exports/_debug/transactions;type=trade.json`
+
+Useful for inspecting raw payloads while developing new extractors (standings, transactions, players, etc.).
+The _debug files are not part of the stable export layout and can be safely deleted at any time.
 
 ### League Dump
 ```bash
@@ -118,9 +127,28 @@ Produces a league-scoped export tree under exports/<league_key>/, for example:
 
 ### Standings Dump
 ```bash
-python -m scripts.standings_dump --league-key 453.l.33099 --to-excel
+python -m scripts.standings_dump --league-key 453.l.33099 --pretty --to-excel
 ```
-Produces a league-scoped export tree under exports/<league_key>/
+Requires a prior league_dump run for the same league (reads _meta/latest.json and the latest league.*.json as context).
+Produces league-scoped outputs under exports/<league_key>/standings_dump/ including:
+
+- `raw/scoreboard.wkNNN.<ISO>.json` – raw weekly scoreboard snapshots.
+- `processed/matchups.<ISO>.json` – week-by-week matchup ledger.
+- `processed/weekly.<ISO>.json` – per-team, per-week category totals + W/L/T, with playoff flags.
+- `processed/summary.<ISO>.json` – regular-season + playoff summaries (totals, averages, ranks).
+- `excel/standings.wkSS-EE.<ISO>.xlsx` – Matchups, WeeklyTotals, RegularSummary, PlayoffSummary, RunInfo sheets.
+
+### Transactions Dump
+```bash
+python -m scripts.transactions_dump --league-key 453.l.33099 --pretty --to-excel
+```
+Also requires a prior league_dump run (uses _meta/latest.json + latest processed league JSON).
+Produces league-scoped outputs under exports/<league_key>/transactions_dump/ including:
+
+- `raw/transactions.<ISO>.json` – full-season Yahoo transactions payload.
+- `processed/master.<ISO>.json` – normalized move ledger with timestamps, weeks, types, and per-player moves.
+- `excel/transactions.<ISO>.xlsx` – AllMoves, Adds, Drops, Trades sheets with team + player context.
+- `manifest/manifest.<ISO>.json` – file list, sizes, hashes, and CLI arguments for this run.
 
 ### Token Refresh
 - Automatic via `get_session()` in `src/auth/oauth.py`
