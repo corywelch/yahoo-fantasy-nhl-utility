@@ -167,6 +167,32 @@ Fetches the draft results for the specified league under exports/<league_key>/dr
 python -m scripts.rostered_players_list --league-key 453.l.33099 --pretty --to-excel
 ```
 
+### Player Stat Data Dump
+```bash
+python -m scripts.players_dump --league-key 453.l.33099 --season 2024 --pretty
+```
+This script depends on prior runs of `league_dump` and `rostered_players_list`
+for the same league. Then, for the league’s rostered player universe, it fetches season-level player
+stats from Yahoo’s `league/<league_key>/players;out=stats` endpoint, with local
+per-player caching to avoid repeated API calls.
+
+Outputs under:
+
+- `raw/players.stats.season<YYYY>.<ISO>.json`
+- `processed/player_stats.season<YYYY>.<ISO>.json`
+- `manifest/manifest.season<YYYY>.<ISO>.json`
+- `manifest/cache/season-<YYYY>/<player_key>.json`    (per-player cache, internal use)
+
+<league_key> is the full Yahoo league key (e.g. `465.l.22607`)
+<YYYY> is the fantasy season (e.g. `2025`)
+<ISO> is a run identifier like `20251129T014755Z` (UTC timestamp)
+
+The processed JSON contains one record per rostered player with identity fields
+(player_key, editorial_player_key, name, NHL team, positions), the target
+`season`, and flat maps of `stat_id → value` for both standard and advanced
+stats.
+
+
 ### Token Refresh
 - Automatic via `get_session()` in `src/auth/oauth.py`
 - Manual repair:
