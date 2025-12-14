@@ -19,36 +19,48 @@ from requests_oauthlib import OAuth2Session
 # ENV LOADER
 # ==========
 def load_env() -> Dict[str, str]:
-    """
+    """Load environment variables from .env file and system environment.
+
     Lightweight .env reader to avoid new dependencies.
     Rules:
       - Lines like KEY=VALUE (no quotes needed)
       - Ignores blanks and comments that start with '#'
       - Strips inline comments after '#' (e.g., VALUE  # note)
+      - Removes optional surrounding quotes from values
+
+    Returns:
+        Dictionary containing combined environment variables
     """
     env = dict(os.environ)
     env_path = os.path.join(os.getcwd(), ".env")
+
     if os.path.exists(env_path):
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
-                k, v = line.split("=", 1)
-                k, v = k.strip(), v.strip()
-                # strip inline comments
-                if "#" in v:
-                    v = v.split("#", 1)[0].rstrip()
-                # remove optional surrounding quotes
-                if (len(v) >= 2) and ((v[0] == v[-1]) and v[0] in ("'", '"')):
-                    v = v[1:-1]
-                env.setdefault(k, v)
-    # defaults
+
+                key, value = line.split("=", 1)
+                key, value = key.strip(), value.strip()
+
+                # Strip inline comments
+                if "#" in value:
+                    value = value.split("#", 1)[0].rstrip()
+
+                # Remove optional surrounding quotes
+                if (len(value) >= 2) and ((value[0] == value[-1]) and value[0] in ("'", '"')):
+                    value = value[1:-1]
+
+                env.setdefault(key, value)
+
+    # Set defaults for missing environment variables
     env.setdefault("TLS_CERT_FILE", "./certs/localhost.pem")
     env.setdefault("TLS_KEY_FILE", "./certs/localhost-key.pem")
     env.setdefault("OAUTH_PROMPT", "")
     env.setdefault("OAUTH_MANUAL", env.get("OAUTH_MANUAL", "0"))
     env.setdefault("OAUTH_DEBUG", env.get("OAUTH_DEBUG", "0"))
+
     return env
 
 
@@ -66,20 +78,45 @@ DEFAULT_TOKEN_FILE = "./data/yahoo_token.json"
 # FILE IO HELPERS
 # ================
 def _ensure_parent(path: str) -> None:
+    """Ensure parent directory exists for the given path.
+
+    Args:
+        path: File path to check/create parent directory for
+    """
     parent = os.path.dirname(os.path.abspath(path))
     if parent and not os.path.exists(parent):
         os.makedirs(parent, exist_ok=True)
 
 def _atomic_write_json(path: str, data: dict) -> None:
+    """Atomically write JSON data to file.
+
+    Writes to temporary file first, then replaces original to avoid
+    partial writes during crashes.
+
+    Args:
+        path: Destination file path
+        data: JSON-serializable data to write
+    """
     _ensure_parent(path)
-    tmp = f"{path}.tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
+    temp_path = f"{path}.tmp"
+
+    with open(temp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
-    os.replace(tmp, path)
+
+    os.replace(temp_path, path)
 
 def _read_json(path: str) -> Optional[dict]:
+    """Read JSON data from file.
+
+    Args:
+        path: File path to read from
+
+    Returns:
+        Parsed JSON data as dictionary, or None if file doesn't exist
+    """
     if not os.path.exists(path):
         return None
+
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -87,9 +124,14 @@ def _read_json(path: str) -> Optional[dict]:
 # LOCAL HTTPS SERVER
 # ===================
 class _CallbackHandler(BaseHTTPRequestHandler):
+    """OAuth callback handler for local HTTP server.
+
+    Handles OAuth redirect callbacks and extracts authorization codes.
+    """
     code: Optional[str] = None
 
-    def do_GET(self):
+    def do_GET(self) -> None:
+        """Handle GET requests to the callback endpoint."""
         # Expect /callback?code=...&state=...
         if self.path.startswith("/callback"):
             # Parse code minimally
@@ -103,21 +145,42 @@ class _CallbackHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def log_message(self, fmt, *args):
-        # keep quiet unless debugging
+    def log_message(self, fmt: str, *args) -> None:
+        """Suppress logging unless debugging is enabled."""
+        # Keep quiet unless debugging
         return
 
 @contextmanager
-def _run_local_server(host: str, port: int, scheme: str, cert_file: str | None, key_file: str | None):
+def _run_local_server(
+    host: str,
+    port: int,
+    scheme: str,
+    cert_file: Optional[str],
+    key_file: Optional[str]
+) -> None:
+    """Run local HTTP/HTTPS server for OAuth callback handling.
+
+    Args:
+        host: Hostname to bind to
+        port: Port to listen on
+        scheme: HTTP or HTTPS
+        cert_file: Path to TLS certificate file (required for HTTPS)
+        key_file: Path to TLS key file (required for HTTPS)
+    """
     server = HTTPServer((host, port), _CallbackHandler)
+
     if scheme.lower() == "https":
         if not (cert_file and key_file):
-            raise RuntimeError("HTTPS redirect_uri requires TLS_CERT_FILE and TLS_KEY_FILE in .env")
+            raise RuntimeError(
+                "HTTPS redirect_uri requires TLS_CERT_FILE and TLS_KEY_FILE in .env"
+            )
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(certfile=cert_file, keyfile=key_file)
         server.socket = context.wrap_socket(server.socket, server_side=True)
+
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+
     try:
         yield
     finally:
@@ -128,10 +191,17 @@ def _run_local_server(host: str, port: int, scheme: str, cert_file: str | None, 
 # PUBLIC ENTRY POINTS
 # ====================
 def get_session() -> Session:
-    """
-    Return a requests.Session with Bearer auth that auto-refreshes tokens.
-    - Reads existing token from TOKEN_FILE; if missing/expired, triggers flow.
-    - On refresh, writes updated token back to TOKEN_FILE.
+    """Get authenticated requests session with auto-refreshing OAuth2 tokens.
+
+    Returns a requests.Session configured with Bearer authentication that
+    automatically refreshes expired tokens. Handles both existing valid tokens
+    and new authentication flows.
+
+    Returns:
+        Authenticated requests.Session with auto-refresh capability
+
+    Raises:
+        RuntimeError: If required OAuth credentials are missing
     """
     env = load_env()
     client_id = env.get("YAHOO_CLIENT_ID", "").strip()
@@ -146,10 +216,14 @@ def get_session() -> Session:
     debug = env.get("OAUTH_DEBUG", "0").strip() == "1"
 
     if not client_id or not client_secret or not redirect_uri:
-        raise RuntimeError("Missing YAHOO_CLIENT_ID / YAHOO_CLIENT_SECRET / YAHOO_REDIRECT_URI in environment or .env")
+        raise RuntimeError(
+            "Missing YAHOO_CLIENT_ID / YAHOO_CLIENT_SECRET / YAHOO_REDIRECT_URI "
+            "in environment or .env"
+        )
 
-    def token_updater(t: dict):
-        _atomic_write_json(token_file, t)
+    def token_updater(token_data: dict) -> None:
+        """Update token file with new token data."""
+        _atomic_write_json(token_file, token_data)
 
     token = _read_json(token_file)
 
@@ -165,40 +239,57 @@ def get_session() -> Session:
         token_updater=token_updater if token else None,
     )
 
-
+    # Trigger authentication flow if no token or token is expired
     if not token or _is_expired(token):
         token = _obtain_token(
-            oauth, client_id, client_secret, redirect_uri, scope, manual, prompt, tls_cert, tls_key, debug
+            oauth, client_id, client_secret, redirect_uri, scope,
+            manual, prompt, tls_cert, tls_key, debug
         )
         token_updater(token)
         oauth.token = token
 
-    sess = Session()
-    sess.headers.update({"Authorization": f"Bearer {oauth.token['access_token']}"})
+    # Create authenticated session
+    session = Session()
+    session.headers.update({"Authorization": f"Bearer {oauth.token['access_token']}"})
 
-    def _response_hook(r, *args, **kwargs):
-        if r.status_code == 401:
+    def _response_hook(response, *args, **kwargs):
+        """Handle 401 responses by refreshing token."""
+        if response.status_code == 401:
             refreshed = oauth.refresh_token(
                 YAHOO_TOKEN_URL,
                 client_id=client_id,
                 client_secret=client_secret,
             )
             token_updater(refreshed)
-            sess.headers.update({"Authorization": f"Bearer {refreshed['access_token']}"})
-        return r
+            session.headers.update({"Authorization": f"Bearer {refreshed['access_token']}"})
+        return response
 
-    sess.hooks["response"].append(_response_hook)
-    return sess
+    session.hooks["response"].append(_response_hook)
+    return session
 
 # =================
 # INTERNAL HELPERS
 # =================
 def _is_expired(token: dict, skew: int = 60) -> bool:
+    """Check if OAuth token is expired.
+
+    Args:
+        token: OAuth token dictionary
+        skew: Time skew in seconds to account for clock differences (default: 60)
+
+    Returns:
+        True if token is expired, False otherwise
+    """
     now = time.time()
+
     if "expires_at" in token:
         return (token["expires_at"] - skew) <= now
+
     if "expires_in" in token:
-        return (token.get("_issued_at", now) + token["expires_in"] - skew) <= now
+        issued_at = token.get("_issued_at", now)
+        return (issued_at + token["expires_in"] - skew) <= now
+
+    # If no expiration info, consider expired
     return True
 
 def _obtain_token(
@@ -209,15 +300,33 @@ def _obtain_token(
     scope: str,
     manual: bool,
     prompt: str,
-    tls_cert: str | None,
-    tls_key: str | None,
+    tls_cert: Optional[str],
+    tls_key: Optional[str],
     debug: bool,
 ) -> dict:
-    """
-    Acquire initial tokens (automatic localhost HTTP/HTTPS if manual=False, else manual paste).
-    NOTE:
-      - redirect_uri and scope are already bound on the OAuth2Session.
-      - DO NOT pass them again to authorization_url(...) or fetch_token(...),
+    """Obtain OAuth2 tokens using either manual or automatic flow.
+
+    Handles both manual token entry (for headless environments) and
+    automatic localhost callback flow.
+
+    Args:
+        oauth: Configured OAuth2Session instance
+        client_id: Yahoo OAuth client ID
+        client_secret: Yahoo OAuth client secret
+        redirect_uri: OAuth redirect URI
+        scope: Requested OAuth scopes
+        manual: Whether to use manual token entry
+        prompt: OAuth prompt parameter
+        tls_cert: Path to TLS certificate for HTTPS
+        tls_key: Path to TLS key for HTTPS
+        debug: Whether to enable debug output
+
+    Returns:
+        Dictionary containing OAuth tokens
+
+    Note:
+        redirect_uri and scope are already bound on the OAuth2Session.
+        Do NOT pass them again to authorization_url() or fetch_token(),
         or oauthlib will see duplicate values and throw.
     """
     # Only optional extras (e.g., prompt) go in kwargs
@@ -234,10 +343,13 @@ def _obtain_token(
         print("Open this URL, authorize, and paste the full redirected URL:")
         print(auth_url)
         redirected = input("Redirected URL: ").strip()
+
         from urllib.parse import urlparse, parse_qs
         code = parse_qs(urlparse(redirected).query).get("code", [None])[0]
+
         if not code:
             raise RuntimeError("No 'code' in redirected URL")
+
         # Exchange code; DO NOT pass redirect_uri here (session already has it)
         token = oauth.fetch_token(
             token_url=YAHOO_TOKEN_URL,
@@ -251,11 +363,14 @@ def _obtain_token(
     # Automatic localhost callback (HTTP or HTTPS)
     host, port, scheme = _host_port_scheme_from_uri(redirect_uri)
     _CallbackHandler.code = None
+
     with _run_local_server(host, port, scheme, tls_cert, tls_key):
         webbrowser.open(auth_url, new=1, autoraise=True)
         deadline = time.time() + 300
+
         while time.time() < deadline and _CallbackHandler.code is None:
             time.sleep(0.2)
+
     if not _CallbackHandler.code:
         raise RuntimeError("Did not receive authorization code on local callback")
 
@@ -266,36 +381,64 @@ def _obtain_token(
         client_secret=client_secret,
         include_client_id=True,
     )
+
     _stamp_issue_time(token)
     return token
 
-
-
 def _host_port_scheme_from_uri(uri: str) -> tuple[str, int, str]:
+    """Parse URI to extract host, port, and scheme.
+
+    Args:
+        uri: URI string to parse
+
+    Returns:
+        Tuple of (host, port, scheme)
+    """
     from urllib.parse import urlparse
-    u = urlparse(uri)
-    port = u.port or (443 if u.scheme == "https" else 80)
-    host = u.hostname or "127.0.0.1"
-    scheme = u.scheme or "http"
+    parsed_uri = urlparse(uri)
+    port = parsed_uri.port or (443 if parsed_uri.scheme == "https" else 80)
+    host = parsed_uri.hostname or "127.0.0.1"
+    scheme = parsed_uri.scheme or "http"
     return host, port, scheme
 
 def _stamp_issue_time(token: dict) -> None:
+    """Stamp token with issue time.
+
+    Args:
+        token: Token dictionary to stamp
+    """
     token["_issued_at"] = time.time()
 
 # ===============
 # CLI ENTRYPOINT
 # ===============
 def main(argv=None) -> int:
+    """Main CLI entry point for OAuth testing.
+
+    Args:
+        argv: Command line arguments (optional)
+
+    Returns:
+        0 if successful, 1 if error, 2 if token validation failed
+    """
     try:
         env = load_env()
-        sess = get_session()
+        session = get_session()
+
         # Probe a cheap endpoint to confirm the token (users;use_login=1 is stable)
-        resp = sess.get("https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1?format=json", timeout=30)
-        ok = resp.status_code == 200
-        print(f"Token OK: {ok} (status={resp.status_code})")
-        if env.get("OAUTH_DEBUG","0") == "1":
+        response = session.get(
+            "https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1?format=json",
+            timeout=30
+        )
+
+        ok = response.status_code == 200
+        print(f"Token OK: {ok} (status={response.status_code})")
+
+        if env.get("OAUTH_DEBUG", "0") == "1":
             print(f"Redirect URI (env): {env.get('YAHOO_REDIRECT_URI')}")
+
         return 0 if ok else 2
+
     except Exception as e:
         print(f"Auth error: {e}", file=sys.stderr)
         return 1

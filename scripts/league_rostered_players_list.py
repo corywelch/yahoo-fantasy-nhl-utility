@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 """
-rostered_players_list: consolidated player list from draft + transactions.
+league_rostered_players_list: consolidated player list from draft + transactions.
 
 This script depends on prior runs of ``league_dump``, ``draft_dump``, and
 ``transactions_dump`` for the same league. It *reads* their latest processed
@@ -28,7 +28,7 @@ For each player, the output records:
 
 Outputs under:
 
-  exports/<league_key>/rostered_players_list/
+  exports/<league_key>/league_rostered_players_list/
     processed/
       players.<ISO>.json
     excel/
@@ -88,7 +88,7 @@ class Paths:
 
 def _paths_for_league(league_key: str) -> Paths:
     root = get_export_dir() / league_key
-    rp_root = root / "rostered_players_list"
+    rp_root = root / "league_rostered_players_list"
     return Paths(
         league_root=root,
         meta_dir=root / "_meta",
@@ -150,7 +150,7 @@ def _require_block(latest: Dict[str, Any], key: str, league_key: str) -> Dict[st
     if not isinstance(block, dict) or "processed" not in block:
         print(
             f"ERROR: _meta/latest.json is missing '{key}.processed' for league {league_key}.\n"
-            f"       Run {key} for this league before running rostered_players_list.",
+            f"       Run {key} for this league before running league_rostered_players_list.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -464,7 +464,7 @@ def _write_manifest(
         }
 
     manifest = {
-        "module": "rostered_players_list",
+        "module": "league_rostered_players_list",
         "league_key": league_key,
         "_generated_unix": run_ts.unix,
         "_generated_iso_utc": run_ts.iso_utc,
@@ -507,7 +507,7 @@ def _update_latest_meta(
     if rel_excel is not None:
         block["excel"] = rel_excel
 
-    latest["rostered_players_list"] = block
+    latest["league_rostered_players_list"] = block
     latest["_updated_unix"] = run_ts.unix
     latest["_updated_iso_utc"] = run_ts.iso_utc
 

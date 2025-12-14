@@ -28,10 +28,13 @@ src/
   nhl_*, df_*           # (future) NHL stats + dataframe helpers
 
 scripts/
-  league_dump.py        # Export league metadata, teams, scoring
-  standings_dump.py     # (planned) Export league standings
-  transactions_dump.py  # (planned) Export recent transactions
-  draft_dump.py         # (planned) Export draft results
+  league_dump.py        # Orchestrator: runs all dump scripts in sequence
+  league_details_dump.py # Export league metadata, teams, scoring (formerly league_dump)
+  standings_dump.py     # Export league standings
+  transactions_dump.py  # Export recent transactions
+  draft_dump.py         # Export draft results
+  league_rostered_players_list.py # Export rostered players list
+  league_players_dump.py       # Export player stats data
 ```
 
 
@@ -110,9 +113,23 @@ Outputs are written to exports/_debug/ as one file per call, e.g.:
 Useful for inspecting raw payloads while developing new extractors (standings, transactions, players, etc.).
 The _debug files are not part of the stable export layout and can be safely deleted at any time.
 
-### League Dump
+### League Dump (Orchestrator)
 ```bash
 python -m scripts.league_dump --league-key 453.l.33099 --pretty --to-excel
+```
+This orchestrator script simplifies executing all dump scripts for a league. It runs the following scripts in sequence:
+
+1. **league_details_dump** (metadata + teams + scoring) - always runs
+2. **draft_dump** - only runs if data doesn't already exist
+3. **standings_dump** - always runs
+4. **transactions_dump** - always runs
+5. **rostered_players_list** - always runs
+
+Note: The `league_players_dump` script is NOT run by this orchestrator.
+
+### League Details Dump
+```bash
+python -m scripts.league_details_dump --league-key 453.l.33099 --pretty --to-excel
 ```
 Produces a league-scoped export tree under exports/<league_key>/, for example:
 
@@ -164,12 +181,12 @@ Fetches the draft results for the specified league under exports/<league_key>/dr
 
 ### Rostered Players List Script
 ```bash
-python -m scripts.rostered_players_list --league-key 453.l.33099 --pretty --to-excel
+python -m scripts.league_rostered_players_list --league-key 453.l.33099 --pretty --to-excel
 ```
 
 ### Player Stat Data Dump
 ```bash
-python -m scripts.players_dump --league-key 453.l.33099 --season 2024 --pretty
+python -m scripts.league_players_dump --league-key 453.l.33099 --season 2024 --pretty
 ```
 This script depends on prior runs of `league_dump` and `rostered_players_list`
 for the same league. Then, for the league’s rostered player universe, it fetches season-level player
@@ -208,11 +225,3 @@ python -m src.auth.oauth
 - No secrets in git: `.env` and token files are ignored
 - Minimize API traffic: caching, batching, no brute force
 - Exports: always include `_unix`, `_excel_serial`, `_iso_utc`
-
-
-## 📝 Changelog
-- League dump finalized (metadata, teams, scoring).
-- Unified OAuth refresh in `src/auth/oauth.py`.
-- Deprecated legacy scripts (`scripts/standalone_oauth.py`, `scripts/standalone_fantasy.py`).
-- README reorganized with OAuth + League Dump instructions.
-- Scaffolding prepared for standings, transactions, and draft modules.

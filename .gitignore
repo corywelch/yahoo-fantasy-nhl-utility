@@ -130,11 +130,14 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.env.*
+.venv.*
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+!.env.example
 
 # Spyder project settings
 .spyderproject
@@ -209,6 +212,12 @@ ehthumbs.db
 *.env.*
 *.log
 *.sqlite
+*.tmp
+*.temp
+*~
+*.bak
+*.swp
+*.swo
 /data/
 /notebooks/
 /exports/
@@ -220,3 +229,8 @@ ehthumbs.db
 .cache/
 .direnv/
 .envrc
+
+
+# AI Development Assistance Tools
+.clinerules
+.github
