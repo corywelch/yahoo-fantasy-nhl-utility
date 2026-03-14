@@ -43,9 +43,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import sys
+# Add project root to sys.path so we can import from src/
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from src.auth.oauth import get_session
 from src.config.env import get_export_dir
 from src.util_time import make_run_timestamps, RunTimestamps
+
+from src.yahoo.api_error import handle_api_error
 
 BASE_URL = "https://fantasysports.yahooapis.com/fantasy/v2"
 
@@ -60,7 +68,7 @@ def _fetch(endpoint: str) -> dict:
     sess = get_session()
     url = f"{BASE_URL}/{endpoint}"
     r = sess.get(url, params={"format": "json"}, headers={"Accept": "application/json"})
-    r.raise_for_status()
+    handle_api_error(r, f"endpoint {endpoint}")
     return r.json()
 
 
@@ -766,7 +774,7 @@ def _to_excel(
         "prev_opponent_key",
     ]
     for sid in stat_id_order:
-        headers_w.append(f"stat_{sid}_{stat_labels.get(sid, sid)}")
+        headers_w.append(stat_labels.get(sid, sid))
     headers_w.extend(["cats_wins", "cats_losses", "cats_ties", "team_points"])
 
     ws_weekly.append(headers_w)

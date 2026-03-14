@@ -4,7 +4,7 @@ This repository is a **script-driven Python toolkit** for interacting with the *
 - **clean JSON snapshots**
 - **presentation-ready Excel workbooks** (hyperlinks, images/logos, formatting)
 
-This file is the **single source of truth** for AI coding assistants (GitHub Copilot, Cline, Devstral, GPT‑5.2).  
+This file is the **single source of truth** for AI coding assistants (like GitHub Copilot).  
 If you are an AI agent working in this repo: **follow the rules below exactly**.
 
 ---

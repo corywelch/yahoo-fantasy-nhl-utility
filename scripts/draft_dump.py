@@ -33,10 +33,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Add project root to sys.path so we can import from src/
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from src.auth.oauth import get_session
 from src.config.env import get_export_dir
 from src.util_time import RunTimestamps, make_run_timestamps
 
+from src.yahoo.api_error import handle_api_error
 BASE_URL = "https://fantasysports.yahooapis.com/fantasy/v2"
 
 
@@ -47,8 +53,8 @@ def _fetch(endpoint: str) -> dict:
     """Fetch a Fantasy Sports API endpoint as JSON, raising for HTTP errors."""
     sess = get_session()
     url = f"{BASE_URL}/{endpoint}"
-    r = sess.get(url, params={"format": "json"}, headers={"Accept": "application/json"})
-    r.raise_for_status()
+    r = sess.get(url, params={"format": "json"})
+    handle_api_error(r, f"endpoint {endpoint}")
     return r.json()
 
 

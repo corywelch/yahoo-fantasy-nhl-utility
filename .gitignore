@@ -232,5 +232,6 @@ ehthumbs.db
 
 
 # AI Development Assistance Tools
-.clinerules
-.github
+.clinerules/
+.github/
+.AI/

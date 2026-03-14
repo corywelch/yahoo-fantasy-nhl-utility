@@ -35,6 +35,8 @@ from src.auth.oauth import get_session
 from src.config.env import get_export_dir
 from src.util_time import RunTimestamps, make_run_timestamps
 
+from src.yahoo.api_error import handle_api_error
+
 BASE_URL = "https://fantasysports.yahooapis.com/fantasy/v2"
 
 
@@ -88,7 +90,7 @@ def _datetime_to_excel_serial(dt: datetime) -> float:
 def _fetch_json(session: requests.Session, path: str) -> Dict[str, Any]:
     url = f"{BASE_URL}/{path}?format=json"
     resp = session.get(url)
-    resp.raise_for_status()
+    handle_api_error(resp, f"endpoint {path}")
     return resp.json()
 
 
@@ -792,11 +794,7 @@ def main() -> None:
     week_index = _build_week_index(session, league_key, start_week, end_week, head_to_head)
 
     # Fetch transactions
-    try:
-        raw_payload = _fetch_json(session, f"league/{league_key}/transactions")
-    except requests.HTTPError as exc:
-        print(f"ERROR: Failed to fetch transactions for {league_key}: {exc}", file=sys.stderr)
-        sys.exit(1)
+    raw_payload = _fetch_json(session, f"league/{league_key}/transactions")
 
     # Save raw snapshot
     raw_path = paths.raw_dir / f"transactions.{run_ts.iso_stamp}.json"

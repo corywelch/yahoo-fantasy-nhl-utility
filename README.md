@@ -14,7 +14,6 @@ It emphasizes **presentation-ready Excel output**, **automatic OAuth token refre
 - **JSON Output**: Tidy, structured snapshots for programmatic use.
 - **Historical Support**: Works with full league keys (e.g., `453.l.33099`).
 - **OAuth Refresh**: Unified token handling in `src/auth/oauth.py` (manual or HTTPS callback via mkcert).
-- **Future Modules**: Planned `standings_dump.py`, `transactions_dump.py`, `draft_dump.py`, etc.
 - **Timestamp Triplets**: All exports include `_unix`, `_excel_serial`, `_iso_utc`.
 
 
@@ -35,6 +34,11 @@ scripts/
   draft_dump.py         # Export draft results
   league_rostered_players_list.py # Export rostered players list
   league_players_dump.py       # Export player stats data
+  season_details_dump.py       # Export season details
+  season_player_data_dump.py   # Export season-wide player stats
+  probe_player_endpoints.py    # Utility for exploring player API
+  standalone_fantasy.py        # Standalone testing of Fantasy API
+  standalone_oauth.py          # Standalone testing of OAuth flow
 ```
 
 
@@ -209,6 +213,44 @@ The processed JSON contains one record per rostered player with identity fields
 `season`, and flat maps of `stat_id → value` for both standard and advanced
 stats.
 
+## Season Dump (Orchestrator)
+```bash
+python -m scripts.season_dump --season 2024 --league-key 453.l.33099 --pretty --to-excel
+```
+This orchestrator script simplifies executing all season-level dump scripts in sequence. It runs:
+
+1. **season_details_dump** - always runs
+2. **season_player_data_dump** - always runs
+
+Note: The `--league-key` argument is optional. If provided, `season_player_data_dump` fetches stats for rostered players of that league. If omitted, it will fetch stats for the global game player universe (which covers all players, but results in a significantly larger payload).
+
+### Season Details Dump
+```bash
+python -m scripts.season_details_dump --season 2024 --pretty --to-excel
+```
+Produces a canonical season details JSON export. It requires a prior `league_dump` run as it looks in the latest `_meta` context to extract run timestamps and base layout metadata.
+Produces season-scoped outputs under `exports/<season>/season_details/` including:
+
+- `season_details.<ISO>.json` – basic season metadata and generated timestamp triplets.
+- `season_details.<ISO>.xlsx` – (if `--to-excel` provided) basic Excel summary of the season details.
+
+### Season Player Data Dump
+```bash
+python -m scripts.season_player_data_dump --season 2024 --league-key 453.l.33099 --pretty --to-excel
+```
+Fetches per-player season payloads for the specified season and writes a structured JSON file per player. As with the orchestrator, `--league-key` is optional to scope fetches to rostered players versus a global search.
+Produces season-scoped player outputs under `exports/<season>/playerdata/` including:
+
+- `<player_key>/<player_key>.json` – directory and file for each player, containing their season totals, advanced totals, and individual game entries.
+- `stat_id_map.<ISO>.json` – a map of specific stat IDs to their human-readable string names.
+- `player_summary.<ISO>.xlsx` – (if `--to-excel` provided) an Excel workbook summarizing all players and their stats.
+
+#### ⚠️ Caching & API Limits
+- **2-Hour Cache**: When run with `--league-key`, the script skips players whose local data was generated within the last 2 hours.
+- **Global re-fire**: If `--league-key` is **omitted**, the script performs a global fetch of the entire player universe. This bypasses the cache and triggers a high volume of API calls. **Spamming the global season player data script is discouraged** as it can involve thousands of requests and may lead to API rate limiting.
+
+
+
 
 ### Token Refresh
 - Automatic via `get_session()` in `src/auth/oauth.py`
@@ -220,8 +262,13 @@ python -m src.auth.oauth
 
 ## 🧩 Constraints & Rules
 - Language: Python 3.10+
-- Code style: small OOP modules, verbose comments, ALL_CAPS only for constants
+- Code style: small OOP modules or organized procedural scripts for orchestrator/dumping logic, verbose comments, ALL_CAPS only for constants
 - Naming: `yahoo_*`, `nhl_*`, `df_*`
 - No secrets in git: `.env` and token files are ignored
 - Minimize API traffic: caching, batching, no brute force
 - Exports: always include `_unix`, `_excel_serial`, `_iso_utc`
+
+
+## Future Improvements
+- Replace deprecated/removed `season_games_dump` functionality by integrating directly with the official NHL API to extract and format game-by-game player statistical data.
+- For may of the stat fields and jersey number field excel is treating the values as general and not numbers. this is likely due to there also being a - instead of a 0. For empty or zero stat lines put in 0, and for the jersey number field put in 0 for empty. I want to make sure as much of the excel data as possible is numebers and not general / text.

@@ -1,0 +1,160 @@
+{
+  "fantasy_content": {
+    "xml:lang": "en-US",
+    "yahoo:uri": "/fantasy/v2/users;use_login=1/games;game_keys=nhl/leagues",
+    "users": {
+      "0": {
+        "user": [
+          {
+            "guid": "HKR46VY6PTJ6ZYJ5PNZZIJRURU"
+          },
+          {
+            "games": {
+              "0": {
+                "game": [
+                  {
+                    "game_key": "465",
+                    "game_id": "465",
+                    "name": "Hockey",
+                    "code": "nhl",
+                    "type": "full",
+                    "url": "https://hockey.fantasysports.yahoo.com/hockey",
+                    "season": "2025",
+                    "is_registration_over": 1,
+                    "is_game_over": 0,
+                    "is_offseason": 0
+                  },
+                  {
+                    "leagues": {
+                      "0": {
+                        "league": [
+                          {
+                            "league_key": "465.l.22607",
+                            "league_id": "22607",
+                            "name": "Miikka Keepurstuff",
+                            "url": "https://hockey.fantasysports.yahoo.com/hockey/22607",
+                            "logo_url": "https://yahoofantasysports-res.cloudinary.com/image/upload/t_s192sq/fantasy-logos/4356d05d3c16d5e1d356683b659223acdc450f67ffee2765373fe9046c1f9ab4.png",
+                            "password": "",
+                            "draft_status": "postdraft",
+                            "num_teams": 12,
+                            "edit_key": "2026-03-13",
+                            "weekly_deadline": "intraday",
+                            "roster_type": "date",
+                            "league_update_timestamp": "1773388359",
+                            "scoring_type": "head",
+                            "league_type": "private",
+                            "renew": "453_33099",
+                            "renewed": "",
+                            "felo_tier": "gold",
+                            "is_highscore": false,
+                            "matchup_week": 20,
+                            "iris_group_chat_id": "",
+                            "short_invitation_url": "https://hockey.fantasysports.yahoo.com/hockey/22607/invitation?key=4c2a113974bf9bf7&ikey=e8b18a47be26517a",
+                            "allow_add_to_dl_extra_pos": 1,
+                            "is_pro_league": "0",
+                            "is_cash_league": "0",
+                            "current_week": 20,
+                            "start_week": "2",
+                            "start_date": "2025-10-13",
+                            "end_week": "23",
+                            "end_date": "2026-04-05",
+                            "current_date": "2026-03-13",
+                            "is_plus_league": "0",
+                            "game_code": "nhl",
+                            "season": "2025"
+                          }
+                        ]
+                      },
+                      "1": {
+                        "league": [
+                          {
+                            "league_key": "465.l.125204",
+                            "league_id": "125204",
+                            "name": "Relegate the Chumps - Tier 1",
+                            "url": "https://hockey.fantasysports.yahoo.com/hockey/125204",
+                            "logo_url": "https://s.yimg.com/ep/cx/blendr/v2/image-hockey-sticks-png_1721900244286.png",
+                            "password": "",
+                            "draft_status": "postdraft",
+                            "num_teams": 12,
+                            "edit_key": "2026-03-13",
+                            "weekly_deadline": "intraday",
+                            "roster_type": "date",
+                            "league_update_timestamp": "1773388407",
+                            "scoring_type": "head",
+                            "league_type": "private",
+                            "renew": "453_36264",
+                            "renewed": "",
+                            "felo_tier": "platinum",
+                            "is_highscore": false,
+                            "matchup_week": 20,
+                            "iris_group_chat_id": "",
+                            "short_invitation_url": "https://hockey.fantasysports.yahoo.com/hockey/125204/invitation?key=47f6994cd89ac6ae&ikey=d36f378dc401256b",
+                            "allow_add_to_dl_extra_pos": 1,
+                            "is_pro_league": "0",
+                            "is_cash_league": "0",
+                            "current_week": 20,
+                            "start_week": "1",
+                            "start_date": "2025-10-07",
+                            "end_week": "23",
+                            "end_date": "2026-04-05",
+                            "current_date": "2026-03-13",
+                            "is_plus_league": "0",
+                            "game_code": "nhl",
+                            "season": "2025"
+                          }
+                        ]
+                      },
+                      "2": {
+                        "league": [
+                          {
+                            "league_key": "465.l.66314",
+                            "league_id": "66314",
+                            "name": "Promote the Champs - Tier 2",
+                            "url": "https://hockey.fantasysports.yahoo.com/hockey/66314",
+                            "logo_url": "https://s.yimg.com/ep/cx/blendr/v2/image-foam-finger-png_1721255114928.png",
+                            "draft_status": "postdraft",
+                            "num_teams": 12,
+                            "edit_key": "2026-03-13",
+                            "weekly_deadline": "intraday",
+                            "roster_type": "date",
+                            "league_update_timestamp": "1773388359",
+                            "scoring_type": "head",
+                            "league_type": "private",
+                            "renew": "453_83337",
+                            "renewed": "",
+                            "felo_tier": "silver",
+                            "is_highscore": false,
+                            "matchup_week": 20,
+                            "iris_group_chat_id": "",
+                            "allow_add_to_dl_extra_pos": 1,
+                            "is_pro_league": "0",
+                            "is_cash_league": "0",
+                            "current_week": 20,
+                            "start_week": "1",
+                            "start_date": "2025-10-07",
+                            "end_week": "23",
+                            "end_date": "2026-04-05",
+                            "current_date": "2026-03-13",
+                            "is_plus_league": "0",
+                            "game_code": "nhl",
+                            "season": "2025"
+                          }
+                        ]
+                      },
+                      "count": 3
+                    }
+                  }
+                ]
+              },
+              "count": 1
+            }
+          }
+        ]
+      },
+      "count": 1
+    },
+    "time": "84.649801254272ms",
+    "copyright": "Certain Data by Sportradar, Stats Perform and Rotowire",
+    "refresh_rate": "30"
+  }
+}

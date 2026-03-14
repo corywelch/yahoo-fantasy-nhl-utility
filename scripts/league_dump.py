@@ -170,7 +170,11 @@ def main() -> None:
         success = run_script(script_name, script_args, check_exists=check_exists)
         if not success:
             all_success = False
-            print(f"Warning: {script_name} failed. Continuing with next script...")
+            if script_name == "league_details_dump":
+                print(f"CRITICAL ERROR: {script_name} failed. Aborting orchestration.")
+                break
+            else:
+                print(f"Warning: {script_name} failed. Continuing with next script...")
 
         # Extract league info after running league_details_dump
         if script_name == "league_details_dump" and success:

@@ -54,6 +54,8 @@ from typing import Any, Dict, List, Optional
 
 from src.config.env import get_export_dir
 from src.util_time import RunTimestamps, make_run_timestamps
+from src.auth.oauth import get_session
+import math
 
 
 # ---------------- Data models ----------------
@@ -368,6 +370,41 @@ def _build_player_summaries(
                 team_name=team_name,
                 source="transactions_dump",
             )
+
+    # 3) Fetch missing names from Yahoo API
+    missing_name_players = [p for p in players.values() if not p.player_name]
+    if missing_name_players:
+        try:
+            session = get_session()
+            base_league = league_dump.get("league_info", {}).get("league_key")
+            if base_league:
+                # Batch fetch in chunks of 25
+                for i in range(math.ceil(len(missing_name_players) / 25)):
+                    batch = missing_name_players[i * 25 : (i + 1) * 25]
+                    keys_joined = ",".join([p.player_key for p in batch])
+                    url = f"https://fantasysports.yahooapis.com/fantasy/v2/league/{base_league}/players;player_keys={keys_joined}"
+                    r = session.get(url, params={"format": "json"}, headers={"Accept": "application/json"})
+                    if r.status_code == 200:
+                        fc = r.json().get("fantasy_content", {})
+                        lc = fc.get("league", [])
+                        if len(lc) > 1 and isinstance(lc[1], dict) and "players" in lc[1]:
+                            pl_dict = lc[1]["players"]
+                            for k, v in pl_dict.items():
+                                if k == "count": continue
+                                player_arr = v.get("player", [])
+                                if len(player_arr) > 0 and isinstance(player_arr[0], list):
+                                    # Extract name
+                                    pf = {}
+                                    for item in player_arr[0]:
+                                        if isinstance(item, dict): pf.update(item)
+                                    pk = pf.get("player_key")
+                                    name_obj = pf.get("name") or {}
+                                    full_name = name_obj.get("full") or f"{name_obj.get('first', '')} {name_obj.get('last', '')}".strip()
+                                    if pk and full_name:
+                                        p_ref = get_player(pk)
+                                        p_ref.player_name = full_name
+        except Exception as e:
+            print(f"Warning: Failed to fetch missing player names from global API: {e}", file=sys.stderr)
 
     # Return in a stable order
     out = list(players.values())
