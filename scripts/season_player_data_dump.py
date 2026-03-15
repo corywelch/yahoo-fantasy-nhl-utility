@@ -57,6 +57,24 @@ def _update_latest(season_root: Path, run_ts: RunTimestamps, processed_rel: str,
 
     return latest_path
 
+def _to_num(val: Any) -> int | float | str:
+    """Coax value to numeric if possible, or return original if not. 
+    Coasts '-' and None to 0.
+    """
+    if val is None or val == "-":
+        return 0
+    if isinstance(val, (int, float)):
+        return val
+    s = str(val).strip()
+    if not s:
+        return 0
+    try:
+        if "." in s:
+            return float(s)
+        return int(s)
+    except ValueError:
+        return s
+
 def _to_excel(season: str, out_base: Path, stat_map_path: Path, xlsx_path: Path, run_ts: RunTimestamps) -> None:
     """Generate Excel summary of all players generated during this run."""
     from openpyxl import Workbook
@@ -113,7 +131,7 @@ def _to_excel(season: str, out_base: Path, stat_map_path: Path, xlsx_path: Path,
             p.get("name_full", ""),
             p.get("editorial_player_key", ""),
             p.get("season", ""),
-            p.get("uniform_number", ""),
+            _to_num(p.get("uniform_number")),
             p.get("display_position", ""),
             p.get("primary_position", ""),
             p.get("editorial_team_abbr", ""),
@@ -125,8 +143,8 @@ def _to_excel(season: str, out_base: Path, stat_map_path: Path, xlsx_path: Path,
         for sid in sorted_stat_ids:
             val = st.get(sid)
             if val is None:
-                val = at.get(sid, "")
-            row.append(str(val))
+                val = at.get(sid)
+            row.append(_to_num(val))
         ws.append(row)
 
     ws.freeze_panes = "A2"

@@ -670,9 +670,25 @@ def _aggregate_summary(
 # ---------------- Excel writer ----------------
 
 
+def _to_num(val: Any) -> int | float | str:
+    """Coax value to numeric if possible, or return original if not."""
+    if val is None or val == "-":
+        return 0
+    if isinstance(val, (int, float)):
+        return val
+    s = str(val).strip()
+    if not s:
+        return 0
+    try:
+        if "." in s:
+            return float(s)
+        return int(s)
+    except ValueError:
+        return s
+
 def _to_excel(
     league_ctx: LeagueContext,
-    weekly_rows: List[Dict[str, Any]],
+    weekly_rows: List[dict],
     matchup_summaries: List[Dict[str, Any]],
     xlsx_path: Path,
     run_ts: Optional[RunTimestamps] = None,
@@ -797,13 +813,13 @@ def _to_excel(
         ]
         for sid in stat_id_order:
             val = cats.get(sid)
-            out_row.append(val)
+            out_row.append(_to_num(val))
         out_row.extend(
             [
-                res.get("wins"),
-                res.get("losses"),
-                res.get("ties"),
-                row.get("team_points"),
+                _to_num(res.get("wins")),
+                _to_num(res.get("losses")),
+                _to_num(res.get("ties")),
+                _to_num(row.get("team_points")),
             ]
         )
         ws_weekly.append(out_row)

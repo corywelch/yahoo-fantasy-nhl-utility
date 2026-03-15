@@ -415,6 +415,22 @@ def _build_player_summaries(
 # ---------------- Excel + manifest + latest.json ----------------
 
 
+def _to_num(val: Any) -> int | float | str:
+    """Coax value to numeric if possible, or return original if not."""
+    if val is None or val == "-":
+        return 0
+    if isinstance(val, (int, float)):
+        return val
+    s = str(val).strip()
+    if not s:
+        return 0
+    try:
+        if "." in s:
+            return float(s)
+        return int(s)
+    except ValueError:
+        return s
+
 def _write_excel(players: List[PlayerSummary], path: Path) -> None:
     try:
         from openpyxl import Workbook
@@ -459,7 +475,7 @@ def _write_excel(players: List[PlayerSummary], path: Path) -> None:
                 p.last_move_team_key,
                 p.last_move_team_name,
                 p.last_move_source,
-                p.last_move_timestamp_unix,
+                _to_num(p.last_move_timestamp_unix),
             ]
         )
 
